@@ -8,7 +8,7 @@ void main(void) {
 
 const fragmentShaderSource = `
 void main(void) {
-    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+    gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);  // White color for testing
 }
 `;
 
@@ -35,7 +35,8 @@ function loadShader(gl, type, source) {
     gl.compileShader(shader);
 
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        console.error('An error occurred compiling the shaders:', gl.getShaderInfoLog(shader));
+        console.error('Error compiling shader:', type === gl.VERTEX_SHADER ? 'VERTEX' : 'FRAGMENT');
+        console.error(gl.getShaderInfoLog(shader));
         gl.deleteShader(shader);
         return null;
     }
@@ -61,29 +62,22 @@ function initBuffers(gl) {
 }
 
 function drawScene(gl, programInfo, buffers, deltaTime) {
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);  // Clear to black
+    console.log("Drawing scene");
+
+    gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    // Create a perspective matrix
-    const fieldOfView = 45 * Math.PI / 180;   // in radians
+    const fieldOfView = 45 * Math.PI / 180;
     const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
-    const zNear = 0.1;
-    const zFar = 100.0;
     const projectionMatrix = mat4.create();
+    mat4.perspective(projectionMatrix, fieldOfView, aspect, 0.1, 100.0);
 
-    mat4.perspective(projectionMatrix, fieldOfView, aspect, zNear, zFar);
-
-    // Set the drawing position to the "identity" point
     const modelViewMatrix = mat4.create();
+    mat4.translate(modelViewMatrix, modelViewMatrix, [0.0, 0.0, -6.0]);
 
-    // Move the drawing position a bit back
-    mat4.translate(modelViewMatrix, modelViewMatrix, [0.0, 0.0, -6.0]); 
-
-    // Rotate the modelViewMatrix
-    const rotationAmount = deltaTime * 0.001;  // Rotate at a rate per frame
+    const rotationAmount = deltaTime * 0.001;
     mat4.rotate(modelViewMatrix, modelViewMatrix, rotationAmount, [0, 0, 1]);
 
-    // Tell WebGL how to pull out the positions from the position buffer into the vertexPosition attribute
     const numComponents = 3;
     const type = gl.FLOAT;
     const normalize = false;
@@ -93,8 +87,49 @@ function drawScene(gl, programInfo, buffers, deltaTime) {
     gl.vertexAttribPointer(programInfo.attribLocations.vertexPosition, numComponents, type, normalize, stride, offset);
     gl.enableVertexAttribArray(programInfo.attribLocations.vertexPosition);
 
-    // Use our program
     gl.useProgram(programInfo.program);
 
-    // Set the shader uniforms
-    gl.uniformMatrix4fv(programInfo.uniformLocations.modelViewMatrix, false, modelVi
+    gl.uniformMatrix4fv(programInfo.uniformLocations.modelViewMatrix, false, modelViewMatrix);
+
+    const vertexCount = 3;
+    gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+}
+
+function main() {
+    const canvas = document.getElementById("glCanvas");
+    const gl = canvas.getContext("webgl");
+
+    if (!gl) {
+        console.error("WebGL not supported");
+        return;
+    }
+
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+    const shaderProgram = initShaderProgram(gl, vertexShaderSource, fragmentShaderSource);
+
+    const programInfo = {
+        program: shaderProgram,
+        attribLocations: {
+            vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+        },
+        uniformLocations: {
+            modelViewMatrix: gl.getUniformLocation(shaderProgram, 'uModelViewMatrix'),
+        },
+    };
+
+    const buffers = initBuffers(gl);
+
+    let then = 0;
+    function render(now) {
+        now *= 0.001;
+        const deltaTime = now - then;
+        then = now;
+
+        drawScene(gl, programInfo, buffers, deltaTime);
+        requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+}
+
+main();
